@@ -17,7 +17,9 @@ return new class extends Migration
             DB::table('users')->where('role', 'pengelola')->update(['role' => 'admin']);
             
             // Step 2: Modify kolom role dari enum('admin','pengelola') ke enum('admin','penarik')
-            DB::statement("ALTER TABLE users MODIFY role ENUM('admin', 'penarik') NOT NULL DEFAULT 'admin'");
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement("ALTER TABLE users MODIFY role ENUM('admin', 'penarik') NOT NULL DEFAULT 'admin'");
+            }
             
             // Step 3: Tambahkan kolom wilayah baru
             $table->enum('wilayah', ['dawuhan', 'kubangsari_kulon', 'kubangsari_wetan', 'sokarame', 'tiparjaya'])
@@ -33,7 +35,9 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             // Kembalikan role ke enum lama
-            DB::statement("ALTER TABLE users MODIFY role ENUM('admin', 'pengelola') NOT NULL DEFAULT 'pengelola'");
+            if (DB::getDriverName() === 'mysql') {
+                DB::statement("ALTER TABLE users MODIFY role ENUM('admin', 'pengelola') NOT NULL DEFAULT 'pengelola'");
+            }
             
             // Hapus kolom wilayah
             $table->dropColumn('wilayah');

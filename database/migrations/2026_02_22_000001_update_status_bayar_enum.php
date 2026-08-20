@@ -13,7 +13,9 @@ return new class extends Migration
     public function up(): void
     {
         // Ubah enum status_bayar jadi 4 pilihan
-        DB::statement("ALTER TABLE `tagihan_bulanan` MODIFY COLUMN `status_bayar` ENUM('BELUM_BAYAR', 'SUDAH_BAYAR', 'CICILAN', 'TUNGGAKAN') NOT NULL DEFAULT 'BELUM_BAYAR'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE `tagihan_bulanan` MODIFY COLUMN `status_bayar` ENUM('BELUM_BAYAR', 'SUDAH_BAYAR', 'CICILAN', 'TUNGGAKAN') NOT NULL DEFAULT 'BELUM_BAYAR'");
+        }
     }
 
     /**
@@ -22,6 +24,8 @@ return new class extends Migration
     public function down(): void
     {
         // Rollback ke enum lama (2 pilihan)
-        DB::statement("ALTER TABLE `tagihan_bulanan` MODIFY COLUMN `status_bayar` ENUM('BELUM_BAYAR', 'SUDAH_BAYAR') NOT NULL DEFAULT 'BELUM_BAYAR'");
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE `tagihan_bulanan` MODIFY COLUMN `status_bayar` ENUM('BELUM_BAYAR', 'SUDAH_BAYAR') NOT NULL DEFAULT 'BELUM_BAYAR'");
+        }
     }
 };
