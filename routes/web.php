@@ -12,6 +12,7 @@ use App\Http\Controllers\TestimoniController;
 use App\Http\Controllers\Admin\PaymentSettingController;
 use App\Http\Controllers\QRScannerController;
 use App\Http\Controllers\QRCodeBulkController;
+use App\Http\Controllers\OCRController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -64,6 +65,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/api/qr-scanner/store-meteran', [QRScannerController::class, 'storeMeteran'])->name('qr-scanner.store-meteran');
     Route::post('/api/qr-scanner/check-anomaly', [QRScannerController::class, 'checkAnomaly'])->name('qr-scanner.check-anomaly');
     Route::get('/api/qr-scanner/last-meteran/{pelangganId}/{bulan}', [QRScannerController::class, 'getLastMeteran'])->name('qr-scanner.last-meteran');
+    Route::post('/api/ocr/read-meter', [OCRController::class, 'readMeter'])->name('ocr.read-meter');
 
     Route::get('/qr-code/bulk-preview', [QRCodeBulkController::class, 'preview'])->name('qr-code.bulk-preview');
     Route::get('/qr-code/bulk-download-pdf', [QRCodeBulkController::class, 'downloadPDF'])->name('qr-code.bulk-download-pdf');

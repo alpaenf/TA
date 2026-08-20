@@ -519,42 +519,88 @@ function getCurrentMonth() {
 }
 
 /**
- * Mempersiapkan Canvas citra meteran dengan resolusi & ketajaman optimal tanpa merusak detail angka
+ * Crop dan persiapkan citra ROI area digit odometer meteran air
+ * Menggunakan Otsu binarization untuk memisahkan digit gelap dari latar putih
  */
-async function prepareMeterCanvas(imageSrc, heightRatio = 1.0, centerBox = false) {
+async function cropMeterOdometer(imageSrc) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
         img.onload = () => {
             try {
+                // Step 1: Crop area odometer saja (berdasarkan proporsi umum meteran air LXSG)
+                // Area kotak digit ada di bagian atas tengah meteran
+                const cropW = Math.floor(img.width * 0.72);
+                const cropH = Math.floor(img.height * 0.38);
+                const cropX = Math.floor(img.width * 0.14);
+                const cropY = Math.floor(img.height * 0.13);
+
+                // Step 2: Upscale 4x ke 1800px lebar untuk resolusi tinggi
+                const TARGET_W = 1800;
+                const scale = TARGET_W / cropW;
+                const outW = Math.round(cropW * scale);
+                const outH = Math.round(cropH * scale);
+
                 const canvas = document.createElement('canvas');
+                canvas.width = outW;
+                canvas.height = outH;
                 const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = false; // Nearest-neighbor untuk digit
+                ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
 
-                let sx = 0, sy = 0, sw = img.width, sh = Math.floor(img.height * heightRatio);
+                // Step 3: Ambil pixel dan konversi ke grayscale
+                const imageData = ctx.getImageData(0, 0, outW, outH);
+                const data = imageData.data;
+                const grayArr = new Uint8Array(outW * outH);
 
-                if (centerBox) {
-                    sx = Math.floor(img.width * 0.10);
-                    sy = Math.floor(img.height * 0.12);
-                    sw = Math.floor(img.width * 0.80);
-                    sh = Math.floor(img.height * 0.48);
+                for (let i = 0; i < outW * outH; i++) {
+                    const r = data[i * 4];
+                    const g = data[i * 4 + 1];
+                    const b = data[i * 4 + 2];
+                    grayArr[i] = Math.round(r * 0.299 + g * 0.587 + b * 0.114);
                 }
 
-                const scale = Math.min(2.0, 1200 / sw);
-                canvas.width = Math.floor(sw * scale);
-                canvas.height = Math.floor(sh * scale);
+                // Step 4: Hitung threshold Otsu
+                const hist = new Array(256).fill(0);
+                for (let i = 0; i < grayArr.length; i++) hist[grayArr[i]]++;
+                const total = grayArr.length;
+                let sum = 0;
+                for (let i = 0; i < 256; i++) sum += i * hist[i];
 
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+                let sumB = 0, wB = 0, wF = 0;
+                let maxVar = 0, threshold = 128;
+                for (let t = 0; t < 256; t++) {
+                    wB += hist[t];
+                    if (wB === 0) continue;
+                    wF = total - wB;
+                    if (wF === 0) break;
+                    sumB += t * hist[t];
+                    const mB = sumB / wB;
+                    const mF = (sum - sumB) / wF;
+                    const varBetween = wB * wF * (mB - mF) ** 2;
+                    if (varBetween > maxVar) { maxVar = varBetween; threshold = t; }
+                }
 
-                // Grayscale alami (presisi tinggi tanpa binarisasi yang memotong karakter)
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const data = imageData.data;
-                for (let i = 0; i < data.length; i += 4) {
-                    const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-                    data[i] = gray;
-                    data[i + 1] = gray;
-                    data[i + 2] = gray;
+                // Step 5: Binarisasi (hitam-putih bersih): digit putih pada latar hitam
+                // Counter odometer umumnya: digit PUTIH/KREM pada latar HITAM
+                // Deteksi apakah latar lebih terang atau lebih gelap
+                let brightCount = 0;
+                for (let i = 0; i < grayArr.length; i++) if (grayArr[i] > threshold) brightCount++;
+                const bgIsBright = (brightCount / total) > 0.5;
+
+                for (let i = 0; i < outW * outH; i++) {
+                    // Jika latar terang → digit gelap → biarkan gelap tetap gelap
+                    // Jika latar gelap → digit terang → invert supaya digit jadi hitam
+                    let px = grayArr[i];
+                    if (!bgIsBright) {
+                        // Invert: digit terang → jadi gelap agar Tesseract baca dengan benar
+                        px = 255 - px;
+                    }
+                    const bin = px > threshold ? 255 : 0;
+                    data[i * 4] = bin;
+                    data[i * 4 + 1] = bin;
+                    data[i * 4 + 2] = bin;
+                    data[i * 4 + 3] = 255;
                 }
 
                 ctx.putImageData(imageData, 0, 0);
@@ -569,70 +615,26 @@ async function prepareMeterCanvas(imageSrc, heightRatio = 1.0, centerBox = false
 }
 
 /**
- * Mengekstrak dan menyaring kandidat angka meteran (4-6 digit odometer) dari hasil pengenalan Tesseract
+ * Kumpulkan semua kandidat deret digit (4–6 karakter) dari teks OCR
  */
-function extractOdometerValue(data, previousReading = 0) {
-    if (!data) return null;
-
+function collectOdometerCandidates(text, confBase = 70) {
     const candidates = [];
-
-    const inspectStr = (str, baseConf = 80) => {
-        if (!str) return;
-        // Cari deret 3 sampai 6 digit
-        const matches = str.match(/\d{3,6}/g);
-        if (matches) {
-            matches.forEach(m => {
-                const val = parseInt(m, 10);
-                if (!isNaN(val) && val >= 0 && val <= 999999) {
-                    // Berikan skor tinggi untuk format 5-6 digit (contoh: 000051)
-                    let score = baseConf;
-                    if (m.length >= 5) score += 200;
-                    else if (m.length === 4) score += 100;
-                    
-                    // Berikan penalti jika nilainya jauh lebih kecil dari previousReading
-                    if (previousReading > 0 && val < previousReading) {
-                        score -= 50;
-                    }
-
-                    candidates.push({
-                        raw: m,
-                        val: val,
-                        len: m.length,
-                        conf: baseConf,
-                        score: score
-                    });
-                }
-            });
-        }
-    };
-
-    // Inspeksi per kata (words)
-    if (data.words && data.words.length > 0) {
-        data.words.forEach(w => {
-            inspectStr(w.text, w.confidence || 75);
+    if (!text) return candidates;
+    const matches = text.match(/\d{4,6}/g);
+    if (matches) {
+        matches.forEach(m => {
+            const val = parseInt(m, 10);
+            if (!isNaN(val) && val >= 0 && val <= 999999) {
+                candidates.push({ raw: m, val, len: m.length, conf: confBase });
+            }
         });
     }
-
-    // Inspeksi per baris (lines)
-    if (data.lines && data.lines.length > 0) {
-        data.lines.forEach(l => {
-            inspectStr(l.text, l.confidence || 70);
-        });
-    }
-
-    // Inspeksi seluruh teks
-    inspectStr(data.text, 60);
-
-    if (candidates.length === 0) return null;
-
-    // Sort kandidat berdasarkan skor tertinggi
-    candidates.sort((a, b) => b.score - a.score);
-
-    return candidates[0];
+    return candidates;
 }
 
 /**
- * Multi-Pass Engine OCR untuk membaca foto meteran air dari galeri / kamera
+ * OCR Utama: Kirim foto ke backend Laravel → Gemini Vision API (akurasi ~95%)
+ * Fallback otomatis ke Tesseract.js di browser jika backend tidak tersedia
  */
 async function runOCRScan() {
     if (!fotoMeteranPreview.value) {
@@ -645,61 +647,71 @@ async function runOCRScan() {
     ocrConfidence.value = null;
     ocrTextExtracted.value = '';
 
+    // ── STRATEGI 1: Gemini Vision API via backend Laravel ──────────────────
     try {
+        ocrProgress.value = 30;
+        const response = await fetch('/api/ocr/read-meter', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ image: fotoMeteranPreview.value }),
+        });
+
+        ocrProgress.value = 80;
+        const json = await response.json();
+
+        if (json.success && json.value !== undefined) {
+            ocrProgress.value = 100;
+            ocrConfidence.value = json.confidence || 95;
+            ocrTextExtracted.value = `${json.value} (via Gemini Vision)`;
+            form.value.meteran_sesudah = json.value;
+            isScanningOCR.value = false;
+            return;
+        } else {
+            console.warn('[OCR] Gemini Vision tidak mengenali angka:', json.message || json.raw);
+        }
+    } catch (fetchErr) {
+        console.warn('[OCR] Backend Gemini tidak tersedia, fallback ke Tesseract.js', fetchErr.message);
+    }
+
+    // ── STRATEGI 2: Tesseract.js di browser (fallback) ─────────────────────
+    try {
+        ocrProgress.value = 50;
+        const binaryImage = await cropMeterOdometer(fotoMeteranPreview.value);
+
         const worker = await createWorker('eng');
         await worker.setParameters({
             tessedit_char_whitelist: '0123456789',
-            tessedit_pageseg_mode: '6', // Uniform block of text
+            tessedit_pageseg_mode: '7',
         });
 
-        // Pass 1: Memproses 70% area atas foto (Menghilangkan nomor seri di bagian bawah)
-        ocrProgress.value = 35;
-        const upperImage = await prepareMeterCanvas(fotoMeteranPreview.value, 0.70);
-        let ret = await worker.recognize(upperImage);
-        let match = extractOdometerValue(ret.data, meteranSebelum.value);
-
-        // Pass 2: Coba dengan crop area tengah odometer jika Pass 1 belum yakin
-        if (!match || (match.len < 4)) {
-            ocrProgress.value = 65;
-            const centerImage = await prepareMeterCanvas(fotoMeteranPreview.value, 0.50, true);
-            const retCenter = await worker.recognize(centerImage);
-            const matchCenter = extractOdometerValue(retCenter.data, meteranSebelum.value);
-            if (matchCenter && matchCenter.score > (match?.score || 0)) {
-                match = matchCenter;
-                ret = retCenter;
-            }
-        }
-
-        // Pass 3: Fallback ke foto utuh
-        if (!match) {
-            ocrProgress.value = 85;
-            const fullImage = await prepareMeterCanvas(fotoMeteranPreview.value, 1.0);
-            ret = await worker.recognize(fullImage);
-            match = extractOdometerValue(ret.data, meteranSebelum.value);
-        }
-
+        ocrProgress.value = 80;
+        const ret = await worker.recognize(binaryImage);
         await worker.terminate();
-        ocrProgress.value = 100;
 
-        if (match) {
-            ocrConfidence.value = Math.round(match.conf || ret.data.confidence || 88);
-            ocrTextExtracted.value = `${match.val} (Digit: ${match.raw})`;
-            form.value.meteran_sesudah = match.val;
+        ocrProgress.value = 100;
+        const conf = Math.round(ret.data.confidence || 60);
+        ocrConfidence.value = conf;
+
+        const candidates = collectOdometerCandidates(ret.data.text, conf);
+        if (candidates.length > 0) {
+            // Pilih kandidat terpanjang (paling banyak digit)
+            candidates.sort((a, b) => b.len - a.len || b.conf - a.conf);
+            const best = candidates[0];
+            ocrTextExtracted.value = `${best.val} (Digit: ${best.raw})`;
+            form.value.meteran_sesudah = best.val;
         } else {
-            const rawDigits = ret.data.text.replace(/[^0-9]/g, '');
-            if (rawDigits && rawDigits.length > 0) {
-                const parsedVal = parseInt(rawDigits.substring(0, 6), 10);
-                ocrConfidence.value = Math.round(ret.data.confidence || 60);
-                ocrTextExtracted.value = `${parsedVal}`;
-                form.value.meteran_sesudah = parsedVal;
-            } else {
-                ocrTextExtracted.value = 'Tidak Terbaca';
-                alert('Teks meteran tidak terbaca dengan jelas. Silakan periksa foto atau masukan angka secara manual.');
-            }
+            ocrTextExtracted.value = 'Tidak Terbaca';
+            ocrConfidence.value = 0;
+            alert('Angka meteran tidak dapat terbaca. Silakan periksa foto atau isi angka secara manual.');
         }
     } catch (err) {
-        console.error('OCR Error:', err);
-        alert('Gagal membaca angka otomatis via OCR. Silakan masukkan angka meteran secara manual.');
+        console.error('OCR Tesseract Error:', err);
+        ocrTextExtracted.value = 'Error';
+        alert('Gagal membaca foto meteran. Silakan isi angka secara manual.');
     } finally {
         isScanningOCR.value = false;
     }
