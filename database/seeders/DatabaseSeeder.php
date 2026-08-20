@@ -18,23 +18,35 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create Admin User
-        User::create([
-            'name' => 'Administrator',
-            'email' => 'admin@pamsimas.id',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
+        // 1. Create Admin & Pengelola Users
+        User::firstOrCreate(
+            ['email' => 'admin@pamsimas.id'],
+            [
+                'name' => 'Administrator',
+                'password' => Hash::make('password'),
+                'role' => 'admin',
+            ]
+        );
+
+        User::firstOrCreate(
+            ['email' => 'pengelola@pamsimas.id'],
+            [
+                'name' => 'Pengelola PAMSIMAS',
+                'password' => Hash::make('password'),
+                'role' => 'pengelola',
+            ]
+        );
+
+        // 2. Seed All System & Landing Page Content Seeders
+        $this->call([
+            LandingPageSeeder::class,
+            LandingContentSeeder::class,
+            LayananSeeder::class,
+            MapSettingSeeder::class,
+            PenarikSeeder::class,
         ]);
 
-        // Create Pengelola User
-        User::create([
-            'name' => 'Pengelola PAMSIMAS',
-            'email' => 'pengelola@pamsimas.id',
-            'password' => Hash::make('password'),
-            'role' => 'pengelola',
-        ]);
-
-        // Create Sample Pelanggan
+        // 3. Create Sample Pelanggan
         $pelangganData = [
             [
                 'id_pelanggan' => 'PLG001',
@@ -127,22 +139,59 @@ class DatabaseSeeder extends Seeder
         ];
 
         foreach ($pelangganData as $data) {
-            Pelanggan::create($data);
+            Pelanggan::firstOrCreate(['id_pelanggan' => $data['id_pelanggan']], $data);
         }
 
-        // Create Sample Pembayaran for December 2025
-        $pelangganIds = Pelanggan::where('status_aktif', true)->pluck('id')->toArray();
-        foreach ($pelangganIds as $pelangganId) {
-            Pembayaran::create([
-                'pelanggan_id' => $pelangganId,
-                'bulan_bayar' => '2025-12',
-                'tanggal_bayar' => '2025-12-31',
-                'jumlah_bayar' => 50000,
-                'keterangan' => 'Pembayaran pertama - Desember 2025',
-            ]);
-        }
+        // 4. Seed Pembayaran & TagihanBulanan (12 Bulan Historis untuk AI Anomaly Detection)
+        $pelangganList = Pelanggan::where('status_aktif', true)->get();
 
-        // Seed Landing Page Data
-        $this->call(LandingPageSeeder::class);
+        foreach ($pelangganList as $pelanggan) {
+            $baseMeteran = 100;
+            
+            // Seed 12 bulan historis pemakaian (Januari 2025 - Desember 2025)
+            for ($month = 1; $month <= 12; $month++) {
+                $bulanStr = sprintf('2025-%02d', $month);
+                $usage = rand(15, 25); // Pemakaian wajar 15-25 m3 per bulan
+                $meteranSebelum = $baseMeteran;
+                $meteranSesudah = $baseMeteran + $usage;
+                $baseMeteran = $meteranSesudah;
+
+                // Create TagihanBulanan
+                \App\Models\TagihanBulanan::firstOrCreate(
+                    [
+                        'pelanggan_id' => $pelanggan->id,
+                        'bulan' => $bulanStr,
+                    ],
+                    [
+                        'meteran_sebelum' => $meteranSebelum,
+                        'meteran_sesudah' => $meteranSesudah,
+                        'pemakaian_kubik' => $usage,
+                        'tarif_per_kubik' => 2000,
+                        'ada_abunemen' => true,
+                        'biaya_abunemen' => 5000,
+                        'total_tagihan' => ($usage * 2000) + 5000,
+                        'jumlah_terbayar' => ($usage * 2000) + 5000,
+                        'status_bayar' => 'SUDAH_BAYAR',
+                        'status_validasi' => 'NORMAL',
+                        'anomaly_score' => 0.10,
+                        'ocr_confidence' => 95.0,
+                        'catatan_anomali' => 'PEMAKAIAN NORMAL: Pemakaian wajar sesuai historis.',
+                    ]
+                );
+
+                // Create Pembayaran record
+                Pembayaran::firstOrCreate(
+                    [
+                        'pelanggan_id' => $pelanggan->id,
+                        'bulan_bayar' => $bulanStr,
+                    ],
+                    [
+                        'tanggal_bayar' => "2025-" . sprintf('%02d', $month) . "-15",
+                        'jumlah_bayar' => ($usage * 2000) + 5000,
+                        'keterangan' => "Pembayaran Lunas Periode {$bulanStr}",
+                    ]
+                );
+            }
+        }
     }
 }
