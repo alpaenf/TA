@@ -519,10 +519,9 @@ function getCurrentMonth() {
 }
 
 /**
- * Memproses citra meteran: melakukan cropping pada area odometer digit box (ROI)
- * serta mengatur kontras & resolusi adaptif agar Tesseract.js membaca angka meteran (e.g. 000051) secara presisi.
+ * Mempersiapkan Canvas citra meteran dengan resolusi & ketajaman optimal tanpa merusak detail angka
  */
-async function processImageForOCR(imageSrc, cropCounterOnly = true) {
+async function prepareMeterCanvas(imageSrc, heightRatio = 1.0, centerBox = false) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = 'Anonymous';
@@ -531,41 +530,31 @@ async function processImageForOCR(imageSrc, cropCounterOnly = true) {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
 
-                let sx = 0, sy = 0, sw = img.width, sh = img.height;
-                
-                if (cropCounterOnly) {
-                    // Fokus pada kotak counter odometer (area tengah-atas 18%-55% Y, 15%-85% X)
-                    sx = Math.floor(img.width * 0.15);
-                    sy = Math.floor(img.height * 0.18);
-                    sw = Math.floor(img.width * 0.70);
-                    sh = Math.floor(img.height * 0.38);
+                let sx = 0, sy = 0, sw = img.width, sh = Math.floor(img.height * heightRatio);
+
+                if (centerBox) {
+                    sx = Math.floor(img.width * 0.10);
+                    sy = Math.floor(img.height * 0.12);
+                    sw = Math.floor(img.width * 0.80);
+                    sh = Math.floor(img.height * 0.48);
                 }
 
-                // Perbesar area crop (Zoom x2) untuk meningkatkan resolusi OCR
-                canvas.width = sw * 2;
-                canvas.height = sh * 2;
+                const scale = Math.min(2.0, 1200 / sw);
+                canvas.width = Math.floor(sw * scale);
+                canvas.height = Math.floor(sh * scale);
+
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
 
-                // Kontras Adaptif & Luminansi Grayscale
+                // Grayscale alami (presisi tinggi tanpa binarisasi yang memotong karakter)
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const data = imageData.data;
-                
-                let sumLum = 0;
-                for (let i = 0; i < data.length; i += 4) {
-                    sumLum += (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-                }
-                const avgLum = sumLum / (data.length / 4);
-
                 for (let i = 0; i < data.length; i += 4) {
                     const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-                    let factor = (gray - avgLum) * 1.8 + avgLum;
-                    factor = Math.min(255, Math.max(0, factor));
-                    
-                    data[i] = factor;
-                    data[i + 1] = factor;
-                    data[i + 2] = factor;
+                    data[i] = gray;
+                    data[i + 1] = gray;
+                    data[i + 2] = gray;
                 }
 
                 ctx.putImageData(imageData, 0, 0);
@@ -580,55 +569,70 @@ async function processImageForOCR(imageSrc, cropCounterOnly = true) {
 }
 
 /**
- * Menyaring kandidat angka meteran terbaik dari teks hasil OCR (misal "000051" -> 51)
+ * Mengekstrak dan menyaring kandidat angka meteran (4-6 digit odometer) dari hasil pengenalan Tesseract
  */
-function parseBestMeterReading(rawText, previousReading = 0) {
-    if (!rawText) return null;
-
-    const cleanStr = rawText.replace(/[^0-9\s]/g, ' ');
-    const tokens = cleanStr.split(/\s+/).filter(t => t.length > 0);
+function extractOdometerValue(data, previousReading = 0) {
+    if (!data) return null;
 
     const candidates = [];
 
-    tokens.forEach(token => {
-        const digitsOnly = token.replace(/[^0-9]/g, '');
-        if (digitsOnly.length > 0 && digitsOnly.length <= 7) {
-            const val = parseInt(digitsOnly, 10);
-            if (!isNaN(val) && val >= 0 && val <= 999999) {
-                candidates.push({ raw: digitsOnly, val: val, len: digitsOnly.length });
-            }
-        }
-    });
+    const inspectStr = (str, baseConf = 80) => {
+        if (!str) return;
+        // Cari deret 3 sampai 6 digit
+        const matches = str.match(/\d{3,6}/g);
+        if (matches) {
+            matches.forEach(m => {
+                const val = parseInt(m, 10);
+                if (!isNaN(val) && val >= 0 && val <= 999999) {
+                    // Berikan skor tinggi untuk format 5-6 digit (contoh: 000051)
+                    let score = baseConf;
+                    if (m.length >= 5) score += 200;
+                    else if (m.length === 4) score += 100;
+                    
+                    // Berikan penalti jika nilainya jauh lebih kecil dari previousReading
+                    if (previousReading > 0 && val < previousReading) {
+                        score -= 50;
+                    }
 
-    const fullCombinedDigits = rawText.replace(/[^0-9]/g, '');
-    if (fullCombinedDigits.length >= 2 && fullCombinedDigits.length <= 8) {
-        const valCombined = parseInt(fullCombinedDigits, 10);
-        if (!isNaN(valCombined) && valCombined >= 0 && valCombined <= 999999) {
-            candidates.push({ raw: fullCombinedDigits, val: valCombined, len: fullCombinedDigits.length });
+                    candidates.push({
+                        raw: m,
+                        val: val,
+                        len: m.length,
+                        conf: baseConf,
+                        score: score
+                    });
+                }
+            });
         }
+    };
+
+    // Inspeksi per kata (words)
+    if (data.words && data.words.length > 0) {
+        data.words.forEach(w => {
+            inspectStr(w.text, w.confidence || 75);
+        });
     }
+
+    // Inspeksi per baris (lines)
+    if (data.lines && data.lines.length > 0) {
+        data.lines.forEach(l => {
+            inspectStr(l.text, l.confidence || 70);
+        });
+    }
+
+    // Inspeksi seluruh teks
+    inspectStr(data.text, 60);
 
     if (candidates.length === 0) return null;
 
-    // Urutkan kandidat: Utamakan format 4-6 digit (000051) & nilai terdekat >= previousReading
-    candidates.sort((a, b) => {
-        const aIsFormat = (a.len >= 4 && a.len <= 6) ? 100 : 0;
-        const bIsFormat = (b.len >= 4 && b.len <= 6) ? 100 : 0;
-
-        const aDiff = a.val >= previousReading ? (a.val - previousReading) : (previousReading - a.val + 5000);
-        const bDiff = b.val >= previousReading ? (b.val - previousReading) : (previousReading - b.val + 5000);
-
-        const scoreA = aIsFormat - (aDiff * 0.01);
-        const scoreB = bIsFormat - (bDiff * 0.01);
-
-        return scoreB - scoreA;
-    });
+    // Sort kandidat berdasarkan skor tertinggi
+    candidates.sort((a, b) => b.score - a.score);
 
     return candidates[0];
 }
 
 /**
- * Menjalankan OCR Scanner untuk membaca angka meteran air dari foto secara otomatis
+ * Multi-Pass Engine OCR untuk membaca foto meteran air dari galeri / kamera
  */
 async function runOCRScan() {
     if (!fotoMeteranPreview.value) {
@@ -637,54 +641,60 @@ async function runOCRScan() {
     }
 
     isScanningOCR.value = true;
-    ocrProgress.value = 15;
+    ocrProgress.value = 10;
     ocrConfidence.value = null;
     ocrTextExtracted.value = '';
 
     try {
-        ocrProgress.value = 30;
-        // Tahap 1: Crop area digit box odometer
-        const croppedImage = await processImageForOCR(fotoMeteranPreview.value, true);
-        
-        ocrProgress.value = 50;
         const worker = await createWorker('eng');
         await worker.setParameters({
             tessedit_char_whitelist: '0123456789',
-            tessedit_pageseg_mode: '7', // Single line mode
+            tessedit_pageseg_mode: '6', // Uniform block of text
         });
 
-        ocrProgress.value = 75;
-        let ret = await worker.recognize(croppedImage);
-        let bestMatch = parseBestMeterReading(ret.data.text, meteranSebelum.value);
+        // Pass 1: Memproses 70% area atas foto (Menghilangkan nomor seri di bagian bawah)
+        ocrProgress.value = 35;
+        const upperImage = await prepareMeterCanvas(fotoMeteranPreview.value, 0.70);
+        let ret = await worker.recognize(upperImage);
+        let match = extractOdometerValue(ret.data, meteranSebelum.value);
 
-        // Tahap 2: Fallback ke Full Image jika crop ROI tidak menemukan digit
-        if (!bestMatch) {
+        // Pass 2: Coba dengan crop area tengah odometer jika Pass 1 belum yakin
+        if (!match || (match.len < 4)) {
+            ocrProgress.value = 65;
+            const centerImage = await prepareMeterCanvas(fotoMeteranPreview.value, 0.50, true);
+            const retCenter = await worker.recognize(centerImage);
+            const matchCenter = extractOdometerValue(retCenter.data, meteranSebelum.value);
+            if (matchCenter && matchCenter.score > (match?.score || 0)) {
+                match = matchCenter;
+                ret = retCenter;
+            }
+        }
+
+        // Pass 3: Fallback ke foto utuh
+        if (!match) {
             ocrProgress.value = 85;
-            const fullImage = await processImageForOCR(fotoMeteranPreview.value, false);
+            const fullImage = await prepareMeterCanvas(fotoMeteranPreview.value, 1.0);
             ret = await worker.recognize(fullImage);
-            bestMatch = parseBestMeterReading(ret.data.text, meteranSebelum.value);
+            match = extractOdometerValue(ret.data, meteranSebelum.value);
         }
 
         await worker.terminate();
-
         ocrProgress.value = 100;
-        const conf = Math.round(ret.data.confidence || 88);
-        ocrConfidence.value = conf;
 
-        if (bestMatch) {
-            ocrTextExtracted.value = `${bestMatch.val} (Format: ${bestMatch.raw})`;
-            form.value.meteran_sesudah = bestMatch.val;
+        if (match) {
+            ocrConfidence.value = Math.round(match.conf || ret.data.confidence || 88);
+            ocrTextExtracted.value = `${match.val} (Digit: ${match.raw})`;
+            form.value.meteran_sesudah = match.val;
         } else {
             const rawDigits = ret.data.text.replace(/[^0-9]/g, '');
-            if (rawDigits) {
-                const parsedVal = parseInt(rawDigits, 10);
-                if (!isNaN(parsedVal)) {
-                    ocrTextExtracted.value = `${parsedVal}`;
-                    form.value.meteran_sesudah = parsedVal;
-                }
+            if (rawDigits && rawDigits.length > 0) {
+                const parsedVal = parseInt(rawDigits.substring(0, 6), 10);
+                ocrConfidence.value = Math.round(ret.data.confidence || 60);
+                ocrTextExtracted.value = `${parsedVal}`;
+                form.value.meteran_sesudah = parsedVal;
             } else {
                 ocrTextExtracted.value = 'Tidak Terbaca';
-                alert('Teks meteran tidak terbaca dengan jelas. Silakan periksa pencahayaan foto atau isi angka secara manual.');
+                alert('Teks meteran tidak terbaca dengan jelas. Silakan periksa foto atau masukan angka secara manual.');
             }
         }
     } catch (err) {
