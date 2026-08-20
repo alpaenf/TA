@@ -29,15 +29,20 @@ class SecurityHeaders
         // Referrer policy - only send origin on cross-origin requests
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+        // Allow Vite dev server in local development
+        $viteDevServer = app()->environment('local', 'testing')
+            ? ' http://localhost:5173 http://[::1]:5173 ws://localhost:5173 ws://[::1]:5173'
+            : '';
+
         // Content Security Policy - allow same origin and inline scripts (needed for Vue/Inertia)
         $csp = [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-inline needed for Inertia/Vue
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // Allow Google Fonts
-            "img-src 'self' data: blob: https:", // data: for base64 images, blob: for object URLs, https: for external images
-            "font-src 'self' data: https://fonts.gstatic.com", // Allow Google Fonts
-            "connect-src 'self' https://www.google.com", // Allow Google Maps API connections
-            "frame-src 'self' https://www.google.com", // Allow Google Maps iframe embed
+            "default-src 'self'" . $viteDevServer,
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'" . $viteDevServer,
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com" . $viteDevServer,
+            "img-src 'self' data: blob: https:" . $viteDevServer,
+            "font-src 'self' data: https://fonts.gstatic.com" . $viteDevServer,
+            "connect-src 'self' https://www.google.com https://generativelanguage.googleapis.com" . $viteDevServer,
+            "frame-src 'self' https://www.google.com",
             "frame-ancestors 'self'",
         ];
         $response->headers->set('Content-Security-Policy', implode('; ', $csp));
