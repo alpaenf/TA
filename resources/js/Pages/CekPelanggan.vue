@@ -580,7 +580,12 @@
                                         class="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white text-sm"
                                         :placeholder="'Maks: Rp ' + Number(listTunggakan.reduce((sum, t) => sum + t.sisa_tagihan, 0)).toLocaleString('id-ID')"
                                     />
-                                    <p class="text-xs text-amber-600 mt-1">💡 Bisa diisi sebagian untuk cicil (misal: Rp 5.000 dari total Rp {{ Number(listTunggakan.reduce((sum, t) => sum + t.sisa_tagihan, 0)).toLocaleString('id-ID') }})</p>
+                                    <p class="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        Bisa diisi sebagian untuk cicil (misal: Rp 5.000 dari total Rp {{ Number(listTunggakan.reduce((sum, t) => sum + t.sisa_tagihan, 0)).toLocaleString('id-ID') }})
+                                    </p>
                                 </div>
                             </div>
                             
@@ -730,7 +735,12 @@
                                         :readonly="pembayaranForm.status_bayar !== 'CICILAN'"
                                     />
                                     <p v-if="pembayaranErrors.jumlah_bayar" class="text-red-600 text-sm mt-1">{{ pembayaranErrors.jumlah_bayar }}</p>
-                                    <p v-if="pembayaranForm.status_bayar === 'CICILAN'" class="text-xs text-blue-600 mt-1">💡 Untuk cicilan, isi jumlah berapa saja (misal: Rp 1.000, Rp 5.000, dll)</p>
+                                    <p v-if="pembayaranForm.status_bayar === 'CICILAN'" class="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        Untuk cicilan, isi jumlah berapa saja (misal: Rp 1.000, Rp 5.000, dll)
+                                    </p>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Status Bayar <span class="text-red-500">*</span></label>
@@ -747,8 +757,11 @@
                                     </select>
                                     <p class="text-xs text-gray-500 mt-1">
                                         Pilih sesuai kondisi pembayaran.
-                                        <span v-if="pembayaranForm.status_bayar === 'TUNGGAKAN'" class="text-amber-600 block mt-1 font-medium">
-                                            💡 Status Tunggakan akan mengosongkan jumlah bayar agar tercatat sebagai hutang di bulan berikutnya.
+                                        <span v-if="pembayaranForm.status_bayar === 'TUNGGAKAN'" class="text-amber-600 flex items-center gap-1 mt-1 font-medium">
+                                            <svg class="w-3.5 h-3.5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                            </svg>
+                                            Status Tunggakan akan mengosongkan jumlah bayar agar tercatat sebagai hutang di bulan berikutnya.
                                         </span>
                                     </p>
                                 </div>
@@ -865,17 +878,26 @@
                                                 <!-- Badge Status Tagihan (Sesuai 4 Status Standard) -->
                                                 <span 
                                                     :class="[
-                                                        'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-sm',
+                                                        'px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-sm inline-flex items-center gap-1',
                                                         item.status_tagihan === 'SUDAH_BAYAR' ? 'bg-green-500 text-white' :
                                                         item.status_tagihan === 'CICILAN' ? 'bg-yellow-400 text-white' :
                                                         item.status_tagihan === 'TUNGGAKAN' ? 'bg-red-500 text-white' :
                                                         'bg-gray-400 text-white'
                                                     ]"
                                                 >
-                                                    <template v-if="item.status_tagihan === 'SUDAH_BAYAR'">✓ Sudah Bayar</template>
-                                                    <template v-else-if="item.status_tagihan === 'CICILAN'">⚠ Cicilan</template>
-                                                    <template v-else-if="item.status_tagihan === 'TUNGGAKAN'">✖ Tunggakan</template>
-                                                    <template v-else>○ Belum Bayar</template>
+                                                    <template v-if="item.status_tagihan === 'SUDAH_BAYAR'">
+                                                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                        Sudah Bayar
+                                                    </template>
+                                                    <template v-else-if="item.status_tagihan === 'CICILAN'">
+                                                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                                        Cicilan
+                                                    </template>
+                                                    <template v-else-if="item.status_tagihan === 'TUNGGAKAN'">
+                                                        <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                        Tunggakan
+                                                    </template>
+                                                    <template v-else>Belum Bayar</template>
                                                 </span>
                                                 <div class="text-xs text-blue-200 bg-white/10 rounded px-2 py-1">#{{ item.id }}</div>
                                             </div>

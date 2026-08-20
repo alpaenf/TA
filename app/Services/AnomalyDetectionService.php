@@ -41,7 +41,7 @@ class AnomalyDetectionService
                 'pemakaian_kubik' => $pemakaian,
                 'rerata_historis' => !empty($historyUsages) ? round(array_sum($historyUsages) / count($historyUsages), 2) : 0,
                 'persentase_lonjakan' => 0,
-                'catatan' => '⚠️ ANOMALI KRITIS: Angka meteran sesudah (' . $meteranSesudah . ') lebih kecil daripada meteran sebelum (' . $meteranSebelum . '). Harap periksa fisik meteran.',
+                'catatan' => 'ANOMALI KRITIS: Angka meteran sesudah (' . $meteranSesudah . ') lebih kecil daripada meteran sebelum (' . $meteranSebelum . '). Harap periksa fisik meteran.',
             ];
         }
 
@@ -52,8 +52,8 @@ class AnomalyDetectionService
             $anomalyScore = $isAnomaly ? 0.75 : 0.15;
             
             $catatan = $isAnomaly
-                ? "⚠️ PEMAKAIAN TINGGI (COLD START): Pemakaian {$pemakaian} m³ melebihi ambang batas wajar pelanggan baru (60 m³)."
-                : "✅ NORMAL: Pemakaian {$pemakaian} m³ berada dalam batas wajar pelanggan baru.";
+                ? "PEMAKAIAN TINGGI (COLD START): Pemakaian {$pemakaian} m³ melebihi ambang batas wajar pelanggan baru (60 m³)."
+                : "NORMAL: Pemakaian {$pemakaian} m³ berada dalam batas wajar pelanggan baru.";
 
             return [
                 'status' => $isAnomaly ? 'TERINDIKASI_ANOMALI' : 'NORMAL',
@@ -140,9 +140,9 @@ class AnomalyDetectionService
 
         // Fallback Rule Engine
         if ($status === 'TERINDIKASI_ANOMALI') {
-            return "⚠️ TERINDIKASI ANOMALI: Pemakaian {$pemakaian} m³ mengalami lonjakan {$persentaseLonjakan}% dibanding rata-rata historis (" . round($mean, 1) . " m³). Mohon pastikan tidak ada kebocoran atau kesalahan pembacaan meter.";
+            return "TERINDIKASI ANOMALI: Pemakaian {$pemakaian} m³ mengalami lonjakan {$persentaseLonjakan}% dibanding rata-rata historis (" . round($mean, 1) . " m³). Mohon pastikan tidak ada kebocoran atau kesalahan pembacaan meter.";
         }
 
-        return "✅ NORMAL: Pemakaian {$pemakaian} m³ sesuai dengan pola penggunaan historis pelanggan (Rata-rata: " . round($mean, 1) . " m³).";
+        return "PEMAKAIAN NORMAL: Pemakaian {$pemakaian} m³ sesuai dengan pola penggunaan historis pelanggan (Rata-rata: " . round($mean, 1) . " m³).";
     }
 }

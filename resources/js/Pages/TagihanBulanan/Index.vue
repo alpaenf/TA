@@ -296,8 +296,11 @@
                                             </svg>
                                             {{ item.tagihan.status_bayar === 'CICILAN' ? 'Cicilan' : 'Bayar' }}
                                         </button>
-                                        <span v-else-if="item.tagihan?.status_bayar === 'SUDAH_BAYAR'" class="text-xs text-green-600 font-medium">
-                                            ✓ Lunas
+                                        <span v-else-if="item.tagihan?.status_bayar === 'SUDAH_BAYAR'" class="text-xs text-green-600 font-medium inline-flex items-center gap-1">
+                                            <svg class="w-3.5 h-3.5 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                            </svg>
+                                            Lunas
                                         </span>
                                         <span v-else class="text-xs text-gray-400">-</span>
                                     </td>
@@ -756,7 +759,7 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                                     </svg>
                                     <span class="text-sm font-medium text-red-800">
-                                        ⚠️ Ada Tunggakan ({{ listTunggakan.length }} bulan) - Rp {{ Number(listTunggakan.reduce((sum, t) => sum + t.sisa_tagihan, 0)).toLocaleString('id-ID') }}
+                                        Ada Tunggakan ({{ listTunggakan.length }} bulan) - Rp {{ Number(listTunggakan.reduce((sum, t) => sum + t.sisa_tagihan, 0)).toLocaleString('id-ID') }}
                                     </span>
                                 </div>
                                 <svg 
@@ -805,8 +808,11 @@
                                                 class="w-full px-3 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 bg-white"
                                                 placeholder="Isi jumlah bayar tunggakan (bisa cicil)"
                                             />
-                                            <p class="text-xs text-red-600 mt-1">
-                                                💡 Isi sesuai kemampuan (misal: Rp 5.000 dari total Rp {{ Number(listTunggakan.reduce((sum, t) => sum + t.sisa_tagihan, 0)).toLocaleString('id-ID') }})
+                                            <p class="text-xs text-red-600 mt-1 flex items-center gap-1">
+                                                <svg class="w-3.5 h-3.5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                                </svg>
+                                                Isi sesuai kemampuan (misal: Rp 5.000 dari total Rp {{ Number(listTunggakan.reduce((sum, t) => sum + t.sisa_tagihan, 0)).toLocaleString('id-ID') }})
                                             </p>
                                         </div>
                                     </div>
@@ -831,7 +837,12 @@
                                 required
                                 :readonly="pembayaranForm.status_bayar !== 'CICILAN' && !pembayaranForm.bayar_tunggakan"
                             />
-                            <p v-if="pembayaranForm.status_bayar === 'CICILAN'" class="text-xs text-blue-600 mt-1">💡 Untuk cicilan, isi jumlah berapa saja (misal: Rp 1.000, Rp 5.000, dll)</p>
+                            <p v-if="pembayaranForm.status_bayar === 'CICILAN'" class="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                Untuk cicilan, isi jumlah berapa saja (misal: Rp 1.000, Rp 5.000, dll)
+                            </p>
                         </div>
                         
                         <div>
@@ -842,10 +853,10 @@
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-800"
                                 required
                             >
-                                <option value="BELUM_BAYAR">⏳ Belum Bayar - Bulan ini belum dibayar</option>
-                                <option value="CICILAN">🔄 Cicilan - Bayar sebagian</option>
-                                <option value="SUDAH_BAYAR">✅ Sudah Bayar - Lunas penuh</option>
-                                <option value="TUNGGAKAN">📌 Tunggakan - Input bulan lalu yang nunggak</option>
+                                <option value="BELUM_BAYAR">Belum Bayar - Bulan ini belum dibayar</option>
+                                <option value="CICILAN">Cicilan - Bayar sebagian</option>
+                                <option value="SUDAH_BAYAR">Sudah Bayar - Lunas penuh</option>
+                                <option value="TUNGGAKAN">Tunggakan - Input bulan lalu yang nunggak</option>
                             </select>
                             <p class="text-xs text-gray-500 mt-1">
                                 Pilih status pembayaran pelanggan
@@ -952,16 +963,22 @@
                         <button
                             @click="approveKonfirmasi"
                             :disabled="isProcessing"
-                            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50"
+                            class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
                         >
-                            {{ isProcessing ? 'Memproses...' : '✓ Approve' }}
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            {{ isProcessing ? 'Memproses...' : 'Approve' }}
                         </button>
                         <button
                             @click="rejectKonfirmasi"
                             :disabled="isProcessing"
-                            class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition disabled:opacity-50"
+                            class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
                         >
-                            {{ isProcessing ? 'Memproses...' : '✗ Tolak' }}
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                            {{ isProcessing ? 'Memproses...' : 'Tolak' }}
                         </button>
                         <button
                             @click="closeKonfirmasiModal"

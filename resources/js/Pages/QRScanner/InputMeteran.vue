@@ -151,11 +151,17 @@
                             <div v-else-if="anomalyAnalysis" class="mt-3 p-4 rounded-xl border-2 transition" :class="anomalyAnalysis.status === 'TERINDIKASI_ANOMALI' ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-emerald-50 border-emerald-300 text-emerald-900'">
                                 <div class="flex items-start justify-between gap-3">
                                     <div class="flex items-center gap-2 font-bold text-sm">
-                                        <span v-if="anomalyAnalysis.status === 'TERINDIKASI_ANOMALI'" class="px-2.5 py-1 bg-amber-500 text-white rounded-full text-xs uppercase tracking-wider flex items-center gap-1">
-                                            ⚠️ PERLU VERIFIKASI (ANOMALI)
+                                        <span v-if="anomalyAnalysis.status === 'TERINDIKASI_ANOMALI'" class="px-2.5 py-1 bg-amber-500 text-white rounded-full text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                            </svg>
+                                            PERLU VERIFIKASI (ANOMALI)
                                         </span>
-                                        <span v-else class="px-2.5 py-1 bg-emerald-600 text-white rounded-full text-xs uppercase tracking-wider flex items-center gap-1">
-                                            ✅ PEMAKAIAN NORMAL
+                                        <span v-else class="px-2.5 py-1 bg-emerald-600 text-white rounded-full text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                            </svg>
+                                            PEMAKAIAN NORMAL
                                         </span>
                                     </div>
                                     <span class="text-xs font-semibold px-2 py-0.5 rounded bg-white/70 border border-current">
@@ -269,7 +275,7 @@
                                         <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                                         </svg>
-                                        {{ isScanningOCR ? 'Membaca Angka Meter...' : '🔍 Scan Otomatis Angka Meter (OCR)' }}
+                                        {{ isScanningOCR ? 'Membaca Angka Meter...' : 'Scan Otomatis Angka Meter (OCR)' }}
                                     </button>
                                 </div>
 
@@ -287,7 +293,10 @@
                                 <!-- OCR Result Confidence Badge -->
                                 <div v-if="ocrConfidence !== null" class="mt-3 p-3 bg-blue-100/70 border border-blue-200 rounded-lg flex items-center justify-between text-xs text-blue-900 font-medium">
                                     <span class="flex items-center gap-1.5 font-bold">
-                                        🎯 Hasil OCR: <code class="px-1.5 py-0.5 bg-white rounded border border-blue-300 font-mono text-sm text-blue-800">{{ ocrTextExtracted || form.meteran_sesudah }}</code>
+                                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        Hasil OCR: <code class="px-1.5 py-0.5 bg-white rounded border border-blue-300 font-mono text-sm text-blue-800">{{ ocrTextExtracted || form.meteran_sesudah }}</code>
                                     </span>
                                     <span class="px-2 py-0.5 bg-blue-600 text-white font-bold rounded-full text-[10px]">
                                         Akurasi: {{ ocrConfidence }}%

@@ -616,11 +616,13 @@
                         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                             <h3 class="font-bold text-gray-700">Rincian Transaksi</h3>
                             <div class="flex flex-wrap items-center gap-2 text-xs">
-                                <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full font-semibold">
-                                    🟢 Umum: {{ summary.pelangganUmum || 0 }} SR ({{ summary.transaksiUmum || 0 }}×)
+                                <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
+                                    <svg class="w-3 h-3 text-green-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/></svg>
+                                    Umum: {{ summary.pelangganUmum || 0 }} SR ({{ summary.transaksiUmum || 0 }}×)
                                 </span>
-                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold">
-                                    🔵 Sosial: {{ summary.pelangganSosial || 0 }} SR ({{ summary.transaksiSosial || 0 }}×)
+                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-semibold inline-flex items-center gap-1">
+                                    <svg class="w-3 h-3 text-blue-600 shrink-0" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/></svg>
+                                    Sosial: {{ summary.pelangganSosial || 0 }} SR ({{ summary.transaksiSosial || 0 }}×)
                                 </span>
                                 <span class="bg-white border border-gray-200 text-gray-600 px-2 py-1 rounded-full font-medium">
                                     Total: {{ data.length }} data
@@ -683,9 +685,18 @@
                                                     : 'bg-gray-100 text-gray-700'
                                             ]"
                                         >
-                                            <span v-if="!item.keterangan || item.keterangan === 'LUNAS'">✓ LUNAS</span>
-                                            <span v-else-if="item.keterangan === 'CICILAN'">⟳ CICILAN</span>
-                                            <span v-else-if="item.keterangan === 'TUNGGAKAN'">⚠ TUNGGAKAN</span>
+                                            <span v-if="!item.keterangan || item.keterangan === 'LUNAS'" class="inline-flex items-center gap-1">
+                                                <svg class="w-3 h-3 text-green-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                LUNAS
+                                            </span>
+                                            <span v-else-if="item.keterangan === 'CICILAN'" class="inline-flex items-center gap-1">
+                                                <svg class="w-3 h-3 text-yellow-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                                CICILAN
+                                            </span>
+                                            <span v-else-if="item.keterangan === 'TUNGGAKAN'" class="inline-flex items-center gap-1">
+                                                <svg class="w-3 h-3 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                                TUNGGAKAN
+                                            </span>
                                             <span v-else>{{ item.keterangan }}</span>
                                         </span>
                                     </td>
