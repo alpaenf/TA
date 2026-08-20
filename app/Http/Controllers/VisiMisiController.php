@@ -49,6 +49,15 @@ class VisiMisiController extends Controller
     // API endpoint untuk landing page
     public function get()
     {
-        return VisiMisi::first();
+        $visiMisi = VisiMisi::first();
+
+        return response()->json($visiMisi ?? [
+            'visi' => 'Menjadi penyedia layanan air bersih yang terpercaya, berkualitas, dan terjangkau bagi seluruh masyarakat.',
+            'misi' => [
+                'Menyediakan pasokan air bersih yang memenuhi standar kesehatan secara kontinyu.',
+                'Meningkatkan mutu pelayanan dan kepuasan masyarakat secara berkesinambungan.',
+                'Mengembangkan tata kelola PAMSIMAS secara transparan dan profesional.',
+            ],
+        ]);
     }
 }

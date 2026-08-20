@@ -44,7 +44,12 @@ const sejarah = ref(null);
 onMounted(async () => {
   try {
     const response = await fetch(`/api/sejarah?t=${Date.now()}`);
-    sejarah.value = await response.json();
+    if (response.ok) {
+      const data = await response.json();
+      if (data) {
+        sejarah.value = data;
+      }
+    }
   } catch (error) {
     console.error('Error loading sejarah:', error);
   }

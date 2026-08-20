@@ -47,6 +47,11 @@ class SejarahController extends Controller
     // API endpoint untuk landing page
     public function get()
     {
-        return Sejarah::first();
+        $sejarah = Sejarah::first();
+
+        return response()->json($sejarah ?? [
+            'konten' => 'PAMSIMAS didirikan sebagai wujud komitmen bersama masyarakat dalam memenuhi kebutuhan pasokan air bersih yang aman, higienis, dan terjangkau secara mandiri dan berkelanjutan.',
+            'foto' => null,
+        ]);
     }
 }

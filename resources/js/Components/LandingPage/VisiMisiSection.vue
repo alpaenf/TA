@@ -55,11 +55,15 @@ const loadVisiMisi = async () => {
   try {
     // Add cache busting timestamp to prevent browser caching
     const response = await fetch(`/api/visi-misi?t=${Date.now()}`);
-    visiMisi.value = await response.json();
-    
-    // Filter out any empty misi items
-    if (visiMisi.value?.misi) {
-      visiMisi.value.misi = visiMisi.value.misi.filter(m => m && m.trim() !== '');
+    if (response.ok) {
+      const data = await response.json();
+      if (data) {
+        visiMisi.value = data;
+        // Filter out any empty misi items
+        if (visiMisi.value?.misi && Array.isArray(visiMisi.value.misi)) {
+          visiMisi.value.misi = visiMisi.value.misi.filter(m => m && typeof m === 'string' && m.trim() !== '');
+        }
+      }
     }
   } catch (error) {
     console.error('Error loading visi misi:', error);
