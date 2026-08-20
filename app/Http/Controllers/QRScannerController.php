@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Pelanggan;
 use App\Models\TagihanBulanan;
 use App\Models\InformasiTarif;
+use App\Services\AnomalyDetectionService;
 use App\Helpers\WilayahHelper;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -202,9 +203,32 @@ class QRScannerController extends Controller
     }
     
     /**
+     * Endpoint API real-time untuk validasi anomali AI berdasarkan histori pelanggan
+     */
+    public function checkAnomaly(Request $request, AnomalyDetectionService $anomalyService)
+    {
+        $request->validate([
+            'pelanggan_id' => 'required|exists:pelanggan,id',
+            'meteran_sebelum' => 'required|numeric',
+            'meteran_sesudah' => 'required|numeric',
+        ]);
+
+        $analysis = $anomalyService->analyzeReading(
+            $request->pelanggan_id,
+            (float) $request->meteran_sebelum,
+            (float) $request->meteran_sesudah
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => $analysis,
+        ]);
+    }
+
+    /**
      * Simpan data meteran baru
      */
-    public function storeMeteran(Request $request)
+    public function storeMeteran(Request $request, AnomalyDetectionService $anomalyService)
     {
         $request->validate([
             'pelanggan_id' => 'required|exists:pelanggan,id',
@@ -212,6 +236,7 @@ class QRScannerController extends Controller
             'bulan' => ['required', 'regex:/^\d{4}-\d{2}$/'],
             'ada_abunemen' => 'nullable|boolean',
             'foto_meteran' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
+            'ocr_confidence' => 'nullable|numeric',
             'keterangan' => 'nullable|string',
         ]);
         
@@ -223,7 +248,6 @@ class QRScannerController extends Controller
             // VALIDASI WILAYAH untuk Penarik
             $user = auth()->user();
             if ($user && $user->isPenarik() && $user->hasWilayah()) {
-                // FIX: Gunakan WilayahHelper untuk normalisasi (handle underscore, multiple spaces, case-insensitive)
                 $userWilayah = WilayahHelper::normalize($user->getWilayah());
                 $pelangganWilayah = WilayahHelper::normalize($pelanggan->wilayah);
                 
@@ -244,7 +268,6 @@ class QRScannerController extends Controller
                 ->where('kategori', 'biaya')
                 ->first();
             
-            // Fallback ke nilai default jika tidak ada data tarif
             $tarifPerKubik = $tarifPemakaian ? (float)$tarifPemakaian->harga : 2000;
             $biayaAbunemen = $biayaAbunemenData ? (float)$biayaAbunemenData->harga : 3000;
             $minimalPemakaian = 10;
@@ -254,7 +277,6 @@ class QRScannerController extends Controller
                 : null;
             $fotoTagihanColumn = $this->resolveTagihanFotoColumn();
             
-            // Validasi tarif tidak boleh null atau 0
             if (!$tarifPerKubik || $tarifPerKubik <= 0) {
                 return response()->json([
                     'success' => false,
@@ -268,7 +290,6 @@ class QRScannerController extends Controller
                 ->first();
 
             if ($existingTagihan) {
-                // Jika sudah ada dan statusnya Lunas, tidak boleh diupdate
                 if ($existingTagihan->status_bayar === 'Lunas') {
                     return response()->json([
                         'success' => false,
@@ -276,14 +297,13 @@ class QRScannerController extends Controller
                     ], 422);
                 }
 
-                // Hitung ulang tagihan
-                $pemakaianKubik = $request->meteran_sesudah - $existingTagihan->meteran_sebelum;
-                
-                // Jika pemakaian kurang dari minimal, gunakan minimal pemakaian
+                $meteranSebelum = $existingTagihan->meteran_sebelum;
+                $pemakaianKubik = $request->meteran_sesudah - $meteranSebelum;
                 $pemakaianDitagih = max($pemakaianKubik, $minimalPemakaian);
-                
-                // Hitung total tagihan
                 $totalTagihan = ($pemakaianDitagih * $tarifPerKubik) + ($adaAbunemen ? $biayaAbunemen : 0);
+
+                // AI Anomaly Detection Analysis
+                $anomalyAnalysis = $anomalyService->analyzeReading($pelanggan->id, (float)$meteranSebelum, (float)$request->meteran_sesudah);
 
                 $updateData = [
                     'meteran_sesudah' => $request->meteran_sesudah,
@@ -293,29 +313,28 @@ class QRScannerController extends Controller
                     'biaya_abunemen' => $adaAbunemen ? $biayaAbunemen : 0,
                     'total_tagihan' => $totalTagihan,
                     'keterangan' => $request->keterangan,
+                    'ocr_confidence' => $request->input('ocr_confidence'),
+                    'anomaly_score' => $anomalyAnalysis['anomaly_score'] ?? 0.0,
+                    'status_validasi' => $anomalyAnalysis['status'] ?? 'NORMAL',
+                    'catatan_anomali' => $anomalyAnalysis['catatan'] ?? null,
                 ];
 
                 if ($fotoMeteranPath && $fotoTagihanColumn) {
                     $updateData[$fotoTagihanColumn] = $fotoMeteranPath;
                 }
 
-                // Update tagihan yang ada
                 $existingTagihan->update($updateData);
-
                 $tagihan = $existingTagihan;
                 $message = 'Data tagihan berhasil diperbarui.';
 
             } else {
-                // Skeario Baru: Cari meteran sebelum dari bulan sebelumnya
-                // Ambil tagihan terakhir SEBELUM bulan yang sedang diinput
                 $tagihanTerakhir = TagihanBulanan::where('pelanggan_id', $pelanggan->id)
-                    ->where('bulan', '<', $request->bulan) // Hanya cari bulan sebelumnya
+                    ->where('bulan', '<', $request->bulan)
                     ->orderBy('bulan', 'desc')
                     ->first();
                 
                 $meteranSebelum = $tagihanTerakhir ? $tagihanTerakhir->meteran_sesudah : 0;
                 
-                // Validasi meteran sesudah harus lebih besar dari meteran sebelum
                 if ($request->meteran_sesudah < $meteranSebelum) {
                     return response()->json([
                         'success' => false,
@@ -323,16 +342,13 @@ class QRScannerController extends Controller
                     ], 422);
                 }
 
-                // Hitung pemakaian
                 $pemakaianKubik = $request->meteran_sesudah - $meteranSebelum;
-                
-                // Jika pemakaian kurang dari minimal, gunakan minimal pemakaian
                 $pemakaianDitagih = max($pemakaianKubik, $minimalPemakaian);
-                
-                // Hitung total tagihan
                 $totalTagihan = ($pemakaianDitagih * $tarifPerKubik) + ($adaAbunemen ? $biayaAbunemen : 0);
                 
-                // Buat tagihan baru
+                // AI Anomaly Detection Analysis
+                $anomalyAnalysis = $anomalyService->analyzeReading($pelanggan->id, (float)$meteranSebelum, (float)$request->meteran_sesudah);
+
                 $createData = [
                     'pelanggan_id' => $pelanggan->id,
                     'bulan' => $request->bulan,
@@ -345,6 +361,10 @@ class QRScannerController extends Controller
                     'total_tagihan' => $totalTagihan,
                     'status_bayar' => 'BELUM_BAYAR',
                     'keterangan' => $request->keterangan,
+                    'ocr_confidence' => $request->input('ocr_confidence'),
+                    'anomaly_score' => $anomalyAnalysis['anomaly_score'] ?? 0.0,
+                    'status_validasi' => $anomalyAnalysis['status'] ?? 'NORMAL',
+                    'catatan_anomali' => $anomalyAnalysis['catatan'] ?? null,
                 ];
 
                 if ($fotoMeteranPath && $fotoTagihanColumn) {
@@ -352,7 +372,6 @@ class QRScannerController extends Controller
                 }
 
                 $tagihan = TagihanBulanan::create($createData);
-
                 $message = 'Data meteran berhasil disimpan.';
             }
             

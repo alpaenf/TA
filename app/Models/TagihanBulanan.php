@@ -24,6 +24,10 @@ class TagihanBulanan extends Model
         'foto_meteran',
         'bukti_transfer',
         'keterangan',
+        'ocr_confidence',
+        'anomaly_score',
+        'status_validasi',
+        'catatan_anomali',
     ];
     
     protected $casts = [

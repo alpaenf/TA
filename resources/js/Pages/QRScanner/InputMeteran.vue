@@ -137,7 +137,35 @@
                                 </svg>
                                 Meteran sesudah harus lebih besar atau sama dengan meteran sebelum!
                             </p>
-                            <p v-else class="text-xs text-gray-500 mt-1">Masukkan angka yang tertera pada meteran air</p>
+                            <p v-else class="text-xs text-gray-500 mt-1">Masukkan angka yang tertera pada meteran air atau gunakan scan OCR otomatis di bawah.</p>
+
+                            <!-- AI Anomaly Detection Card -->
+                            <div v-if="isAnalyzingAnomaly" class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg animate-pulse flex items-center gap-2 text-xs text-blue-700">
+                                <svg class="w-4 h-4 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                AI sedang mengevaluasi histori pemakaian...
+                            </div>
+
+                            <div v-else-if="anomalyAnalysis" class="mt-3 p-4 rounded-xl border-2 transition" :class="anomalyAnalysis.status === 'TERINDIKASI_ANOMALI' ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-emerald-50 border-emerald-300 text-emerald-900'">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="flex items-center gap-2 font-bold text-sm">
+                                        <span v-if="anomalyAnalysis.status === 'TERINDIKASI_ANOMALI'" class="px-2.5 py-1 bg-amber-500 text-white rounded-full text-xs uppercase tracking-wider flex items-center gap-1">
+                                            ⚠️ PERLU VERIFIKASI (ANOMALI)
+                                        </span>
+                                        <span v-else class="px-2.5 py-1 bg-emerald-600 text-white rounded-full text-xs uppercase tracking-wider flex items-center gap-1">
+                                            ✅ PEMAKAIAN NORMAL
+                                        </span>
+                                    </div>
+                                    <span class="text-xs font-semibold px-2 py-0.5 rounded bg-white/70 border border-current">
+                                        Skor AI: {{ anomalyAnalysis.anomaly_score }}
+                                    </span>
+                                </div>
+                                <p class="text-xs mt-2 font-medium leading-relaxed">
+                                    {{ anomalyAnalysis.catatan }}
+                                </p>
+                            </div>
                         </div>
 
                         <!-- Opsi Abunemen -->
@@ -160,10 +188,10 @@
                             </label>
                         </div>
 
-                        <!-- Upload Foto Meteran -->
+                        <!-- Upload Foto Meteran & OCR Engine -->
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                Upload Foto Meteran (Opsional)
+                                Upload Foto Meteran Air & OCR Auto-Scan
                             </label>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -208,18 +236,63 @@
                                 class="hidden"
                             />
 
-                            <p class="text-xs text-gray-500 mt-1">Upload untuk ambil dari galeri, atau Foto Langsung untuk buka kamera belakang. Foto akan dikompres otomatis agar lebih aman di hosting.</p>
+                            <p class="text-xs text-gray-500 mt-1">Upload foto dari galeri atau ambil foto langsung untuk menjalankan pembacaan angka otomatis menggunakan OCR.</p>
 
-                            <div v-if="fotoMeteranPreview" class="mt-3">
-                                <p class="text-xs font-semibold text-gray-600 mb-2">Preview Foto</p>
-                                <img :src="fotoMeteranPreview" alt="Preview foto meteran" class="w-36 h-36 object-cover rounded-lg border border-gray-200" />
-                                <button
-                                    type="button"
-                                    @click="clearFotoMeteran"
-                                    class="mt-2 text-xs font-semibold text-red-600 hover:text-red-700"
-                                >
-                                    Hapus Foto
-                                </button>
+                            <!-- Preview & OCR Button -->
+                            <div v-if="fotoMeteranPreview" class="mt-4 p-4 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl">
+                                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                    <div class="flex items-center gap-3">
+                                        <img :src="fotoMeteranPreview" alt="Preview foto meteran" class="w-24 h-24 object-cover rounded-lg border border-gray-300 shadow-sm" />
+                                        <div>
+                                            <p class="text-xs font-bold text-gray-700">Foto Meteran Terunggah</p>
+                                            <button
+                                                type="button"
+                                                @click="clearFotoMeteran"
+                                                class="text-xs font-semibold text-red-600 hover:text-red-700 mt-1 block"
+                                            >
+                                                Hapus Foto
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- OCR Trigger Button -->
+                                    <button
+                                        type="button"
+                                        @click="runOCRScan"
+                                        :disabled="isScanningOCR"
+                                        class="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm rounded-lg shadow-md hover:from-blue-700 hover:to-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        <svg v-if="isScanningOCR" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                        </svg>
+                                        {{ isScanningOCR ? 'Membaca Angka Meter...' : '🔍 Scan Otomatis Angka Meter (OCR)' }}
+                                    </button>
+                                </div>
+
+                                <!-- Progress Bar OCR -->
+                                <div v-if="isScanningOCR" class="mt-3">
+                                    <div class="flex justify-between text-xs font-semibold text-blue-700 mb-1">
+                                        <span>Proses Preprocessing & OCR Engine...</span>
+                                        <span>{{ ocrProgress }}%</span>
+                                    </div>
+                                    <div class="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
+                                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" :style="{ width: ocrProgress + '%' }"></div>
+                                    </div>
+                                </div>
+
+                                <!-- OCR Result Confidence Badge -->
+                                <div v-if="ocrConfidence !== null" class="mt-3 p-3 bg-blue-100/70 border border-blue-200 rounded-lg flex items-center justify-between text-xs text-blue-900 font-medium">
+                                    <span class="flex items-center gap-1.5 font-bold">
+                                        🎯 Hasil OCR: <code class="px-1.5 py-0.5 bg-white rounded border border-blue-300 font-mono text-sm text-blue-800">{{ ocrTextExtracted || form.meteran_sesudah }}</code>
+                                    </span>
+                                    <span class="px-2 py-0.5 bg-blue-600 text-white font-bold rounded-full text-[10px]">
+                                        Akurasi: {{ ocrConfidence }}%
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
@@ -353,6 +426,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
+import { createWorker } from 'tesseract.js';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -378,7 +452,17 @@ const fotoMeteranPreview = ref(null);
 const inputFotoUpload = ref(null);
 const inputFotoKamera = ref(null);
 
-const MAX_SAFE_UPLOAD_BYTES = 350 * 1024; // super kecil (~350KB) agar aman di hosting ketat
+// OCR Engine State
+const isScanningOCR = ref(false);
+const ocrProgress = ref(0);
+const ocrConfidence = ref(null);
+const ocrTextExtracted = ref('');
+
+// AI Anomaly Detection State
+const anomalyAnalysis = ref(null);
+const isAnalyzingAnomaly = ref(false);
+
+const MAX_SAFE_UPLOAD_BYTES = 350 * 1024;
 const MAX_DIMENSION = 1280;
 const MIN_DIMENSION = 640;
 
@@ -407,7 +491,6 @@ const biayaPemakaian = computed(() => {
 
 const estimasiTagihan = computed(() => {
     if (!form.value.meteran_sesudah || form.value.meteran_sesudah === '') return 0;
-    
     return biayaPemakaian.value + (form.value.ada_abunemen ? props.tarif_aktif.biaya_abunemen : 0);
 });
 
@@ -426,6 +509,127 @@ function getCurrentMonth() {
     return `${year}-${month}`;
 }
 
+/**
+ * Memproses gambar dengan Canvas Grayscale & High Contrast sebelum masuk ke OCR
+ */
+async function processImageForOCR(imageSrc) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    const contrast = avg > 110 ? 255 : 0;
+                    data[i] = contrast;
+                    data[i + 1] = contrast;
+                    data[i + 2] = contrast;
+                }
+                ctx.putImageData(imageData, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+            } catch (err) {
+                resolve(imageSrc);
+            }
+        };
+        img.onerror = reject;
+        img.src = imageSrc;
+    });
+}
+
+/**
+ * Menjalankan OCR Scanner untuk membaca angka meteran air dari foto secara otomatis
+ */
+async function runOCRScan() {
+    if (!fotoMeteranPreview.value) {
+        alert('Silakan unggah atau ambil foto meteran air terlebih dahulu.');
+        return;
+    }
+
+    isScanningOCR.value = true;
+    ocrProgress.value = 15;
+    ocrConfidence.value = null;
+    ocrTextExtracted.value = '';
+
+    try {
+        ocrProgress.value = 35;
+        const processedImage = await processImageForOCR(fotoMeteranPreview.value);
+        
+        ocrProgress.value = 55;
+        const worker = await createWorker('eng');
+        await worker.setParameters({
+            tessedit_char_whitelist: '0123456789.',
+            tessedit_pageseg_mode: '6',
+        });
+
+        ocrProgress.value = 75;
+        const ret = await worker.recognize(processedImage);
+        await worker.terminate();
+
+        ocrProgress.value = 100;
+        const rawText = ret.data.text.trim();
+        const conf = Math.round(ret.data.confidence || 85);
+        ocrConfidence.value = conf;
+
+        const numbersOnly = rawText.replace(/[^0-9.]/g, '');
+        ocrTextExtracted.value = numbersOnly || rawText;
+
+        if (numbersOnly) {
+            const parsedVal = parseFloat(numbersOnly);
+            if (!isNaN(parsedVal) && parsedVal >= 0) {
+                form.value.meteran_sesudah = parsedVal;
+            }
+        }
+    } catch (err) {
+        console.error('OCR Error:', err);
+        alert('Gagal membaca angka otomatis via OCR. Silakan masukkan angka meteran secara manual.');
+    } finally {
+        isScanningOCR.value = false;
+    }
+}
+
+/**
+ * Validasi Real-time Anomali AI berdasarkan histori pemakaian
+ */
+let anomalyDebounceTimer = null;
+
+async function checkAnomalyRealtime() {
+    const val = parseFloat(form.value.meteran_sesudah);
+    if (isNaN(val) || form.value.meteran_sesudah === '' || form.value.meteran_sesudah === null) {
+        anomalyAnalysis.value = null;
+        return;
+    }
+
+    isAnalyzingAnomaly.value = true;
+    try {
+        const response = await axios.post('/api/qr-scanner/check-anomaly', {
+            pelanggan_id: props.pelanggan.id,
+            meteran_sebelum: meteranSebelum.value,
+            meteran_sesudah: val,
+        });
+
+        if (response.data && response.data.success) {
+            anomalyAnalysis.value = response.data.data;
+        }
+    } catch (err) {
+        console.error('Error checking anomaly:', err);
+    } finally {
+        isAnalyzingAnomaly.value = false;
+    }
+}
+
+watch(() => form.value.meteran_sesudah, () => {
+    clearTimeout(anomalyDebounceTimer);
+    anomalyDebounceTimer = setTimeout(checkAnomalyRealtime, 400);
+});
+
 async function submitForm() {
     if (!isFormValid.value || loading.value) return;
     
@@ -438,6 +642,9 @@ async function submitForm() {
         formData.append('meteran_sesudah', String(form.value.meteran_sesudah));
         formData.append('ada_abunemen', form.value.ada_abunemen ? '1' : '0');
         formData.append('keterangan', form.value.keterangan || '');
+        if (ocrConfidence.value !== null) {
+            formData.append('ocr_confidence', String(ocrConfidence.value));
+        }
         if (fotoMeteranFile.value) {
             formData.append('foto_meteran', fotoMeteranFile.value);
         }
